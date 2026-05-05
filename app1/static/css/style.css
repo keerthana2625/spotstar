@@ -1,0 +1,79 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: linear-gradient(135deg, #4b05c3, #00cc66);
+    color: white;
+}
+
+/* NAVBAR */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 15px 40px;
+    background: rgba(0,0,0,0.6);
+}
+
+.navbar a {
+    color: white;
+    text-decoration: none;
+    margin-left: 20px;
+}
+
+/* HERO */
+.hero {
+    text-align: center;
+    margin-top: 100px;
+}
+
+/* FORM BOX */
+.form-box {
+    width: 350px;
+    margin: 80px auto;
+    padding: 25px;
+    background: rgba(0,0,0,0.6);
+    border-radius: 10px;
+    text-align: center;
+}
+
+input, select {
+    width: 90%;
+    padding: 10px;
+    margin: 10px 0;
+}
+
+button {
+    padding: 10px;
+    width: 100%;
+    background: #00cc66;
+    border: none;
+    color: white;
+}
+
+/* DASHBOARD */
+.dashboard-links a {
+    display: block;
+    margin: 10px;
+    padding: 10px;
+    background: #00cc66;
+    text-decoration: none;
+    color: white;
+    border-radius: 5px;
+}
+
+/* CARDS */
+.card {
+    background: rgba(0,0,0,0.6);
+    padding: 15px;
+    margin: 20px;
+    border-radius: 10px;
+}
+
+/* SEARCH */
+.search-box {
+    text-align: center;
+    margin: 20px;
+}
+
+.search-box input {
+    width: 300px;
+}

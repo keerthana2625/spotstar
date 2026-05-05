@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2>Discover Audio</h2>
+    <form class="search-bar" method="GET">
+        <input type="text" name="q" placeholder="Search for songs, artists, or directors..." value="{{ query|default:'' }}">
+        <button type="submit" class="btn">Search</button>
+        {% if query %}
+            <a href="{% url 'listener_audio' %}" class="btn" style="background-color: var(--card-hover); width: auto;">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card" style="padding-bottom: 70px; position: relative;">
+                <div class="media-icon">
+                    {% if item.thumbnail %}
+                        <img src="{{ item.thumbnail.url }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+                    {% else %}
+                        <i class="fas fa-music"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle">
+                    Singer: {{ item.singer|default:"Unknown" }}<br>
+                    Music: {{ item.music_director|default:"Unknown" }}<br>
+                    Views: {{ item.view_count }}
+                </div>
+                <audio controls style="position: absolute; bottom: 20px; left: 20px; width: calc(100% - 40px);" onclick="event.preventDefault();">
+                    <source src="{{ item.file.url }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 40px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            {% if query %}
+                No audio found matching "{{ query }}".
+            {% else %}
+                No audio tracks available yet.
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

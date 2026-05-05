@@ -1,0 +1,1559 @@
+﻿--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\manage.py
+--------------------------------------------------------------------------------
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
+
+
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'starspot.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\requirements.txt
+--------------------------------------------------------------------------------
+asgiref==3.11.1
+Django==6.0.3
+mysqlclient==2.2.8
+sqlparse==0.5.5
+tzdata==2025.3
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\admin.py
+--------------------------------------------------------------------------------
+from django.contrib import admin
+
+# Register your models here.
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\apps.py
+--------------------------------------------------------------------------------
+from django.apps import AppConfig
+
+
+class App1Config(AppConfig):
+    name = 'app1'
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\models.py
+--------------------------------------------------------------------------------
+from django.db import models
+
+class User(models.Model):
+    ROLE_CHOICES = (
+        ('listener', 'Listener'),
+        ('uploader', 'Uploader'),
+    )
+
+    username = models.CharField(max_length=50, unique=True)
+    email = models.EmailField(unique=True)
+    password = models.CharField(max_length=255)
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+
+    def __str__(self):
+        return self.username
+
+
+class Media(models.Model):
+    MEDIA_TYPE = (
+        ('audio', 'Audio'),
+        ('video', 'Video'),
+    )
+
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+    )
+
+    title = models.CharField(max_length=150)
+    media_type = models.CharField(max_length=10, choices=MEDIA_TYPE)
+
+    music_director = models.CharField(max_length=100, blank=True)
+    singer = models.CharField(max_length=100, blank=True)
+
+    director = models.CharField(max_length=100, blank=True)
+    actor = models.CharField(max_length=100, blank=True)
+    actress = models.CharField(max_length=100, blank=True)
+
+    release_year = models.IntegerField(null=True, blank=True)
+    release_date = models.DateField(null=True, blank=True)
+
+    file = models.FileField(upload_to='media/')
+    thumbnail = models.FileField(upload_to='thumbnails/', null=True, blank=True)
+    uploaded_by = models.CharField(max_length=50)
+
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    rejection_reason = models.TextField(blank=True, null=True)
+    
+    view_count = models.IntegerField(default=0)
+
+    def __str__(self):
+        return self.title
+
+class Like(models.Model):
+    user_name = models.CharField(max_length=50)
+    media = models.ForeignKey(Media, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user_name', 'media')
+
+class Comment(models.Model):
+    user_name = models.CharField(max_length=50)
+    media = models.ForeignKey(Media, on_delete=models.CASCADE)
+    text = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+class Playlist(models.Model):
+    user_name = models.CharField(max_length=50)
+    title = models.CharField(max_length=150)
+    media_items = models.ManyToManyField(Media, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\tests.py
+--------------------------------------------------------------------------------
+from django.test import TestCase
+
+# Create your tests here.
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\urls.py
+--------------------------------------------------------------------------------
+from django.urls import path
+from . import views
+
+urlpatterns = [
+    path('', views.home, name='home'),
+
+    path('login/', views.login_view, name='login'),
+    path('register/', views.register, name='register'),
+
+    path('dashboard/', views.dashboard, name='dashboard'),
+
+    path('upload-audio/', views.upload_audio, name='upload_audio'),
+    path('upload-video/', views.upload_video, name='upload_video'),
+
+    path('listener-audio/', views.listener_audio, name='listener_audio'),
+    path('listener-video/', views.listener_video, name='listener_video'),
+
+    path('logout/', views.logout, name='logout'),
+]
+path('admin-panel/', views.admin_panel, name='admin_panel'),
+path('approve/<int:id>/', views.approve, name='approve'),
+path('reject/<int:id>/', views.reject, name='reject'),
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\views.py
+--------------------------------------------------------------------------------
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.hashers import make_password, check_password
+from .models import User, Media, Like, Comment, Playlist
+
+OFFENSIVE_WORDS = ['offensive', 'spam', 'scam', 'hate', 'abuse', 'violence', 'badword', 'stupid', 'idiot']
+
+def contains_offensive_word(*texts):
+    for text in texts:
+        if not text: continue
+        words = text.lower().replace(',', ' ').replace('.', ' ').split()
+        for w in words:
+            if w in OFFENSIVE_WORDS:
+                return True
+    return False
+
+def home(request):
+    trending_audio = Media.objects.filter(media_type='audio', status='approved').order_by('-view_count')[:4]
+    trending_video = Media.objects.filter(media_type='video', status='approved').order_by('-view_count')[:4]
+    return render(request, 'home.html', {
+        'trending_audio': trending_audio,
+        'trending_video': trending_video
+    })
+
+
+# REGISTER
+def register(request):
+    if request.method == "POST":
+        username = request.POST['username']
+        email = request.POST['email']
+        password = request.POST['password']
+        confirm = request.POST['confirm_password']
+        role = request.POST['role']
+
+        if password != confirm:
+            return render(request, 'register.html', {'error': 'Passwords do not match'})
+
+        if User.objects.filter(username=username).exists():
+            return render(request, 'register.html', {'error': 'Username exists'})
+
+        User.objects.create(
+            username=username,
+            email=email,
+            password=make_password(password),
+            role=role
+        )
+        return redirect('login')
+
+    return render(request, 'register.html')
+
+
+# LOGIN (with ADMIN)
+def login_view(request):
+    if request.method == "POST":
+        username = request.POST['username']
+        password = request.POST['password']
+
+        # âœ… ADMIN LOGIN
+        if username == "admin" and password == "admin123":
+            request.session['role'] = 'admin'
+            request.session['username'] = 'admin'
+            return redirect('admin_panel')
+
+        user = User.objects.filter(username=username).first()
+
+        if user and check_password(password, user.password):
+            request.session['role'] = user.role
+            request.session['username'] = user.username
+            return redirect('dashboard')
+
+        return render(request, 'login.html', {'error': 'Invalid credentials'})
+
+    return render(request, 'login.html')
+
+
+# DASHBOARD
+def dashboard(request):
+    if 'role' not in request.session:
+        return redirect('login')
+
+    return render(request, 'dashboard.html', {
+        'role': request.session.get('role')
+    })
+
+
+# UPLOAD AUDIO
+def upload_audio(request):
+    if request.session.get('role') != 'uploader':
+        return redirect('login')
+
+    if request.method == "POST":
+        file_obj = request.FILES.get('file')
+        thumbnail = request.FILES.get('thumbnail')
+        title = request.POST.get('title', '')
+        music_director = request.POST.get('music_director', '')
+        singer = request.POST.get('singer', '')
+        release_year = request.POST.get('release_year', '')
+        release_date = request.POST.get('release_date', '')
+
+        status = 'approved'
+        rejection_reason = None
+
+        ext = file_obj.name.split('.')[-1].lower()
+        if ext not in ['mp3', 'wav']:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Only .mp3 or .wav allowed.'
+        elif file_obj.size > 20 * 1024 * 1024:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Audio file exceeds 20MB limit.'
+        elif not title or not music_director or not singer:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Title, Music Director, and Singer are required.'
+        elif contains_offensive_word(title, music_director, singer):
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Offensive language violation.'
+
+        Media.objects.create(
+            title=title,
+            media_type='audio',
+            music_director=music_director,
+            singer=singer,
+            release_year=int(release_year) if release_year.isdigit() else None,
+            release_date=release_date if release_date else None,
+            file=file_obj,
+            thumbnail=thumbnail,
+            uploaded_by=request.session.get('username'),
+            status=status,
+            rejection_reason=rejection_reason
+        )
+        return redirect('dashboard')
+
+    return render(request, 'uploader_audio.html')
+
+
+# UPLOAD VIDEO
+def upload_video(request):
+    if request.session.get('role') != 'uploader':
+        return redirect('login')
+
+    if request.method == "POST":
+        file_obj = request.FILES.get('file')
+        thumbnail = request.FILES.get('thumbnail')
+        title = request.POST.get('title', '')
+        director = request.POST.get('director', '')
+        actor = request.POST.get('actor', '')
+        actress = request.POST.get('actress', '')
+        release_year = request.POST.get('release_year', '')
+        release_date = request.POST.get('release_date', '')
+
+        status = 'approved'
+        rejection_reason = None
+
+        ext = file_obj.name.split('.')[-1].lower()
+        if ext not in ['mp4', 'mkv']:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Only .mp4 or .mkv allowed.'
+        elif file_obj.size > 500 * 1024 * 1024:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Video file exceeds 500MB limit.'
+        elif not title or not director:
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Title and Director are required.'
+        elif contains_offensive_word(title, director, actor, actress):
+            status = 'rejected'
+            rejection_reason = 'Auto-rejected: Offensive language violation.'
+
+        Media.objects.create(
+            title=title,
+            media_type='video',
+            director=director,
+            actor=actor,
+            actress=actress,
+            release_year=int(release_year) if release_year.isdigit() else None,
+            release_date=release_date if release_date else None,
+            file=file_obj,
+            uploaded_by=request.session.get('username'),
+            status=status,
+            rejection_reason=rejection_reason
+        )
+        return redirect('dashboard')
+
+    return render(request, 'uploader_video.html')
+
+
+# ðŸŽµ AUDIO (WITH SEARCH)
+def listener_audio(request):
+    query = request.GET.get('q')
+
+    media = Media.objects.filter(status='approved', media_type='audio')
+
+    if query:
+        media = media.filter(title__icontains=query)
+
+    return render(request, 'listener_audio.html', {
+        'media': media,
+        'query': query
+    })
+
+
+# ðŸŽ¬ VIDEO (WITH SEARCH)
+def listener_video(request):
+    query = request.GET.get('q')
+
+    media = Media.objects.filter(status='approved', media_type='video')
+
+    if query:
+        media = media.filter(title__icontains=query)
+
+    return render(request, 'listener_video.html', {
+        'media': media,
+        'query': query
+    })
+
+
+# ðŸ›¡ï¸ ADMIN PANEL (ALL MEDIA)
+def admin_panel(request):
+    if request.session.get('role') != 'admin':
+        return redirect('login')
+
+    media = Media.objects.all().order_by('-id')
+    return render(request, 'admin.html', {'media': media})
+
+# ðŸ” GLOBAL SEARCH
+def global_search(request):
+    q = request.GET.get('q', '')
+    if not q:
+        return redirect('home')
+
+    audio_results = Media.objects.filter(title__icontains=q, media_type='audio', status='approved').order_by('-view_count')
+    video_results = Media.objects.filter(title__icontains=q, media_type='video', status='approved').order_by('-view_count')
+    creators = User.objects.filter(username__icontains=q, role='uploader')
+
+    return render(request, 'search_results.html', {
+        'query': q,
+        'audio': audio_results,
+        'video': video_results,
+        'creators': creators
+    })
+
+
+# LOGOUT
+def logout(request):
+    request.session.flush()
+    return redirect('login')
+
+
+# ðŸŽ§ MEDIA DETAIL PAGE & INCREMENT VIEW COUNT
+def media_detail(request, media_id):
+    username = request.session.get('username')
+    if not username:
+        return redirect('login')
+
+    media = get_object_or_404(Media, id=media_id)
+    
+    # Increment view count
+    if request.method == "GET":
+        media.view_count += 1
+        media.save()
+
+    comments = Comment.objects.filter(media=media).order_by('-created_at')
+    
+    is_liked = False
+    if username:
+        is_liked = Like.objects.filter(user_name=username, media=media).exists()
+        
+    playlists = []
+    if username:
+        playlists = Playlist.objects.filter(user_name=username)
+        
+    next_media = Media.objects.filter(media_type=media.media_type, status='approved', id__gt=media.id).order_by('id').first()
+    if not next_media:
+        next_media = Media.objects.filter(media_type=media.media_type, status='approved').order_by('id').first()
+
+    return render(request, 'media_detail.html', {
+        'item': media,
+        'comments': comments,
+        'is_liked': is_liked,
+        'playlists': playlists,
+        'next_media': next_media
+    })
+
+
+# â­ TOGGLE LIKE
+def toggle_like(request, media_id):
+    username = request.session.get('username')
+    if not username:
+        return redirect('login')
+        
+    media = get_object_or_404(Media, id=media_id)
+    like_item = Like.objects.filter(user_name=username, media=media).first()
+    
+    if like_item:
+        like_item.delete()
+    else:
+        Like.objects.create(user_name=username, media=media)
+        
+    return redirect('media_detail', media_id=media.id)
+
+
+# ðŸ’¬ ADD COMMENT
+def add_comment(request, media_id):
+    username = request.session.get('username')
+    if request.method == "POST" and username:
+        text = request.POST.get('text')
+        if text:
+            media = get_object_or_404(Media, id=media_id)
+            Comment.objects.create(user_name=username, media=media, text=text)
+    return redirect('media_detail', media_id=media_id)
+
+
+# ðŸ‘¤ CREATOR PROFILE
+def creator_profile(request, username):
+    if not request.session.get('username'):
+        return redirect('login')
+
+    creator = User.objects.filter(username=username, role='uploader').first()
+    # allow showing even if role is not strictly found just in case, but safe to fetch
+    media = Media.objects.filter(uploaded_by=username, status='approved').order_by('-id')
+    
+    return render(request, 'creator_profile.html', {
+        'creator_name': username,
+        'media': media
+    })
+
+
+# ðŸŒŸ LIKED MEDIA
+def liked_media(request):
+    username = request.session.get('username')
+    if not username:
+        return redirect('login')
+
+    likes = Like.objects.filter(user_name=username)
+    media = [like.media for like in likes]
+    
+    return render(request, 'liked_media.html', {'media': media})
+
+
+# ðŸŽµ PLAYLISTS
+def playlists(request):
+    username = request.session.get('username')
+    if not username:
+        return redirect('login')
+
+    if request.method == "POST":
+        title = request.POST.get('title')
+        if title:
+            Playlist.objects.create(user_name=username, title=title)
+        return redirect('playlists')
+
+    user_playlists = Playlist.objects.filter(user_name=username).order_by('-created_at')
+    
+    return render(request, 'playlists.html', {'playlists': user_playlists})
+
+
+# âž• ADD TO PLAYLIST
+def add_to_playlist(request, media_id):
+    username = request.session.get('username')
+    if request.method == "POST" and username:
+        playlist_id = request.POST.get('playlist_id')
+        media = get_object_or_404(Media, id=media_id)
+        playlist = get_object_or_404(Playlist, id=playlist_id, user_name=username)
+        playlist.media_items.add(media)
+    return redirect('media_detail', media_id=media_id)
+
+# âž– REMOVE FROM PLAYLIST
+def remove_from_playlist(request, playlist_id, media_id):
+    username = request.session.get('username')
+    if username:
+        media = get_object_or_404(Media, id=media_id)
+        playlist = get_object_or_404(Playlist, id=playlist_id, user_name=username)
+        playlist.media_items.remove(media)
+    return redirect('playlists')
+
+# âš™ï¸ SETTINGS
+def settings_view(request):
+    username = request.session.get('username')
+    if not username:
+        return redirect('login')
+        
+    user = User.objects.filter(username=username).first()
+    
+    if request.method == "POST":
+        email = request.POST.get('email')
+        new_password = request.POST.get('new_password')
+        
+        if email:
+            user.email = email
+            
+        if new_password:
+            user.password = make_password(new_password)
+            
+        user.save()
+        return render(request, 'settings.html', {'user': user, 'msg': 'Settings updated successfully'})
+        
+    return render(request, 'settings.html', {'user': user})
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\__init__.py
+--------------------------------------------------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\admin.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Uploader</th>
+                <th>Details</th>
+                <th>File</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in media %}
+            <tr>
+                <td>{{ item.title }}</td>
+                <td style="text-transform: capitalize;">{{ item.media_type }}</td>
+                <td>{{ item.uploaded_by }}</td>
+                <td>
+                    {% if item.media_type == 'audio' %}
+                        Singer: {{ item.singer }}<br>MD: {{ item.music_director }}
+                    {% else %}
+                        Dir: {{ item.director }}
+                    {% endif %}
+                </td>
+                <td><a href="{{ item.file.url }}" target="_blank" style="color: var(--accent);">View</a></td>
+                <td>
+                    <span class="status-badge status-{{ item.status }}">
+                        {{ item.status|title }}
+                    </span>
+                    {% if item.rejection_reason %}
+                        <div style="font-size: 11px; margin-top: 5px; color: var(--danger);">{{ item.rejection_reason }}</div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">No media uploaded yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\base.html
+--------------------------------------------------------------------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spotstar Streaming</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/style.css' %}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <div id="mobile-overlay" class="mobile-overlay" onclick="toggleSidebar()"></div>
+        
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="logo" style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="fas fa-satellite-dish"></i>
+                    <h2 style="margin: 0;">Spotstar</h2>
+                </div>
+                <i class="fas fa-times mobile-close-btn" onclick="toggleSidebar()" style="cursor: pointer; font-size: 24px; color: var(--text-muted);"></i>
+            </div>
+            <ul class="nav-links">
+                <li style="margin-bottom: 20px;">
+                    <form action="{% url 'global_search' %}" method="GET" style="display: flex;">
+                        <input type="text" name="q" placeholder="Search Spotstar..." style="width: 100%; padding: 12px 15px; border-radius: 5px; border: none; background: #242424; color: white;" required>
+                        <button type="submit" style="display: none;"></button>
+                    </form>
+                </li>
+                <li><a href="{% url 'home' %}"><i class="fas fa-home"></i> Home</a></li>
+                {% if request.session.username %}
+                    <li><a href="{% url 'dashboard' %}"><i class="fas fa-border-all"></i> Dashboard</a></li>
+                    
+                    {% if request.session.role == 'listener' %}
+                        <li><a href="{% url 'listener_audio' %}"><i class="fas fa-music"></i> Audio</a></li>
+                        <li><a href="{% url 'listener_video' %}"><i class="fas fa-video"></i> Video</a></li>
+                        <li><a href="{% url 'liked_media' %}"><i class="fas fa-heart"></i> Liked Media</a></li>
+                        <li><a href="{% url 'playlists' %}"><i class="fas fa-list-ul"></i> Playlists</a></li>
+                    {% endif %}
+                    
+                    {% if request.session.role == 'uploader' %}
+                        <li><a href="{% url 'upload_audio' %}"><i class="fas fa-file-audio"></i> Upload Audio</a></li>
+                        <li><a href="{% url 'upload_video' %}"><i class="fas fa-file-video"></i> Upload Video</a></li>
+                    {% endif %}
+
+                    {% if request.session.role == 'admin' %}
+                        <li><a href="{% url 'admin_panel' %}"><i class="fas fa-tasks"></i> Admin Dashboard</a></li>
+                    {% endif %}
+                    
+                    <li class="logout-link"><a href="{% url 'settings' %}"><i class="fas fa-cog"></i> Settings</a></li>
+                    <li style="margin-top: 15px;"><a href="{% url 'logout' %}"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
+                {% else %}
+                    <li><a href="{% url 'login' %}"><i class="fas fa-sign-in-alt"></i> Login</a></li>
+                    <li><a href="{% url 'register' %}"><i class="fas fa-user-plus"></i> Register</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="mobile-header">
+                <i class="fas fa-bars" onclick="toggleSidebar()" style="font-size: 24px; color: var(--text-muted); cursor: pointer;"></i>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-satellite-dish" style="color: var(--accent); font-size: 24px;"></i>
+                    <h2 style="margin: 0; color: white;">Spotstar</h2>
+                </div>
+            </div>
+
+            {% block content %}
+            {% endblock %}
+        </main>
+    </div>
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('mobile-overlay');
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+    </script>
+</body>
+</html>
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\creator_profile.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px; padding: 40px; background-color: var(--card-bg); border-radius: 8px;">
+    <i class="fas fa-user-circle" style="font-size: 80px; color: var(--accent); margin-bottom: 15px;"></i>
+    <h1>{{ creator_name }}</h1>
+    <p style="color: var(--text-muted);">Verified Creator</p>
+</div>
+
+<h2>Uploads by {{ creator_name }}</h2>
+<div class="media-grid" style="margin-top: 20px;">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="media-icon" style="height: 120px;">
+                    {% if item.media_type == 'audio' %}
+                        <i class="fas fa-music"></i>
+                    {% else %}
+                        <i class="fas fa-video"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <p style="color: var(--text-muted);">This creator hasn't published anything yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\dashboard.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="table-wrapper" style="padding: 30px;">
+    <h2>Welcome to your Dashboard, {{ request.session.username }}!</h2>
+    <p style="color: var(--text-muted); margin-top: 10px;">
+        Role: <strong style="color: var(--accent); text-transform: capitalize;">{{ request.session.role }}</strong>
+    </p>
+    <div style="margin-top: 30px; color: var(--text-muted);">
+        <p>Use the sidebar on the left to navigate your available features.</p>
+    </div>
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\home.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="text-align: center; padding: 40px 20px;">
+    <i class="fas fa-satellite-dish" style="font-size: 60px; color: var(--accent); margin-bottom: 20px;"></i>
+    <h1 style="font-size: 40px; margin-bottom: 10px;">Welcome to Spotstar</h1>
+    <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 30px;">
+        The next generation streaming platform for creators and listeners.
+    </p>
+
+    {% if not request.session.username %}
+        <div style="display: flex; gap: 20px; justify-content: center; margin-bottom: 40px;">
+            <a href="{% url 'register' %}" class="btn" style="width: 150px;">Get Started</a>
+            <a href="{% url 'login' %}" class="btn" style="width: 150px; background-color: transparent; border: 1px solid var(--text-muted);">Login</a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Trending Audios -->
+{% if trending_audio %}
+<div style="margin-top: 30px;">
+    <h2>ðŸ”¥ Trending Tracks</h2>
+    <div class="media-grid">
+        {% for item in trending_audio %}
+            <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+                <div class="media-card" style="padding-bottom: 20px;">
+                    <div class="media-icon" style="height: 100px;">
+                        <i class="fas fa-music"></i>
+                    </div>
+                    <div class="media-title">{{ item.title }}</div>
+                    <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                        Views: {{ item.view_count }}
+                    </div>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Trending Videos -->
+{% if trending_video %}
+<div style="margin-top: 50px; margin-bottom: 40px;">
+    <h2>ðŸ”¥ Trending Videos</h2>
+    <div class="media-grid">
+        {% for item in trending_video %}
+            <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+                <div class="media-card" style="padding-bottom: 20px;">
+                    <div class="video-container">
+                        <video style="height: 100px; width: 100%; object-fit: cover;">
+                            <source src="{{ item.file.url }}" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="media-title" style="margin-top: 15px;">{{ item.title }}</div>
+                    <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                        Views: {{ item.view_count }}
+                    </div>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\liked_media.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2><i class="fas fa-heart" style="color: var(--danger); margin-right: 10px;"></i> Liked Tracks & Videos</h2>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="media-icon" style="height: 120px;">
+                    {% if item.media_type == 'audio' %}
+                        <i class="fas fa-music"></i>
+                    {% else %}
+                        <i class="fas fa-video"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 50px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            <p>You haven't liked anything yet.</p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\listener_audio.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2>Discover Audio</h2>
+    <form class="search-bar" method="GET">
+        <input type="text" name="q" placeholder="Search for songs, artists, or directors..." value="{{ query|default:'' }}">
+        <button type="submit" class="btn">Search</button>
+        {% if query %}
+            <a href="{% url 'listener_audio' %}" class="btn" style="background-color: var(--card-hover); width: auto;">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card" style="padding-bottom: 70px; position: relative;">
+                <div class="media-icon">
+                    {% if item.thumbnail %}
+                        <img src="{{ item.thumbnail.url }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">
+                    {% else %}
+                        <i class="fas fa-music"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle">
+                    Singer: {{ item.singer|default:"Unknown" }}<br>
+                    Music: {{ item.music_director|default:"Unknown" }}<br>
+                    Views: {{ item.view_count }}
+                </div>
+                <audio controls style="position: absolute; bottom: 20px; left: 20px; width: calc(100% - 40px);" onclick="event.preventDefault();">
+                    <source src="{{ item.file.url }}" type="audio/mpeg">
+                    Your browser does not support the audio element.
+                </audio>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 40px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            {% if query %}
+                No audio found matching "{{ query }}".
+            {% else %}
+                No audio tracks available yet.
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\listener_video.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2>Discover Video</h2>
+    <form class="search-bar" method="GET">
+        <input type="text" name="q" placeholder="Search for videos, directors, or actors..." value="{{ query|default:'' }}">
+        <button type="submit" class="btn">Search</button>
+        {% if query %}
+            <a href="{% url 'listener_video' %}" class="btn" style="background-color: var(--card-hover); width: auto;">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="video-container">
+                    <video controls preload="metadata" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %} onclick="event.preventDefault();">
+                        <source src="{{ item.file.url }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="media-title" style="margin-top: 15px;">{{ item.title }}</div>
+                <div class="media-subtitle">
+                    Director: {{ item.director|default:"Unknown" }}<br>
+                    Actors: {{ item.actor|default:"-" }}, {{ item.actress|default:"-" }}<br>
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 40px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            {% if query %}
+                No videos found matching "{{ query }}".
+            {% else %}
+                No videos available yet.
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\login.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2>Login to Spotstar</h2>
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" required>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" required>
+        </div>
+        <button type="submit" class="btn">Login</button>
+    </form>
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\playlists.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+    <h2>Your Playlists</h2>
+    <form method="POST" style="display: flex; gap: 10px;">
+        {% csrf_token %}
+        <input type="text" name="title" placeholder="New Playlist Name" required style="padding: 10px; border-radius: 4px; border: none; background: #2A2A2A; color: white;">
+        <button type="submit" class="btn" style="width: auto; padding: 10px 20px;">Create</button>
+    </form>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 30px;">
+    {% for playlist in playlists %}
+        <div style="background-color: var(--card-bg); padding: 20px; border-radius: 8px;">
+            <h3><i class="fas fa-list-ul" style="color: var(--accent); margin-right: 10px;"></i> {{ playlist.title }}</h3>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Created {{ playlist.created_at|date:"M d, Y" }}</p>
+            
+            <div class="table-wrapper" style="margin-top: 0;">
+                <table style="background: none;">
+                    <tbody>
+                        {% for item in playlist.media_items.all %}
+                        <tr>
+                            <td style="width: 50px;">
+                                {% if item.media_type == 'audio' %}
+                                    <i class="fas fa-music" style="color: var(--text-muted);"></i>
+                                {% else %}
+                                    <i class="fas fa-video" style="color: var(--text-muted);"></i>
+                                {% endif %}
+                            </td>
+                            <td><a href="{% url 'media_detail' item.id %}" style="color: white; text-decoration: none; font-weight: bold;">{{ item.title }}</a></td>
+                            <td style="color: var(--text-muted);">{{ item.uploaded_by }}</td>
+                            <td style="text-align: right;">
+                                <a href="{% url 'remove_from_playlist' playlist.id item.id %}" style="color: var(--danger); text-decoration: none; font-size: 12px;"><i class="fas fa-times"></i> Remove</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="color: var(--text-muted); text-align: center;">Empty playlist. Discover media to add tracks!</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% empty %}
+        <div style="text-align: center; padding: 50px; background-color: var(--card-bg); border-radius: 8px;">
+            <i class="fas fa-music" style="font-size: 50px; color: var(--text-muted); margin-bottom: 20px;"></i>
+            <p style="color: var(--text-muted);">You don't have any playlists. Create one above!</p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\register.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2>Join Spotstar</h2>
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" name="username" required>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" name="email" required>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" name="password" required>
+        </div>
+        <div class="form-group">
+            <label>Confirm Password</label>
+            <input type="password" name="confirm_password" required>
+        </div>
+        <div class="form-group">
+            <label>Role</label>
+            <select name="role">
+                <option value="listener">Listener</option>
+                <option value="uploader">Creator (Uploader)</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Register</button>
+    </form>
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\search_results.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2>Search Results for "{{ query }}"</h2>
+</div>
+
+<!-- Creators -->
+{% if creators %}
+    <h3 style="margin-bottom: 15px; color: var(--text-muted);">Creators</h3>
+    <div style="display: flex; gap: 20px; margin-bottom: 40px; flex-wrap: wrap;">
+        {% for creator in creators %}
+            <a href="{% url 'creator_profile' creator.username %}" style="text-decoration: none; color: inherit; text-align: center; width: 120px;">
+                <div style="width: 100px; height: 100px; border-radius: 50%; background-color: #333; display: flex; align-items: center; justify-content: center; margin: 0 auto 10px;">
+                    <i class="fas fa-user-circle" style="font-size: 100px; color: var(--accent);"></i>
+                </div>
+                <strong>{{ creator.username }}</strong>
+            </a>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<!-- Audio -->
+{% if audio %}
+    <h3 style="margin-bottom: 15px; color: var(--text-muted);">Audio Tracks</h3>
+    <div class="media-grid" style="margin-bottom: 40px;">
+        {% for item in audio %}
+            <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+                <div class="media-card" style="padding-bottom: 60px; position: relative;">
+                    <div class="media-icon" style="overflow: hidden;">
+                        {% if item.thumbnail %}
+                            <img src="{{ item.thumbnail.url }}" style="width: 100%; height: 100%; object-fit: cover;">
+                        {% else %}
+                            <i class="fas fa-music"></i>
+                        {% endif %}
+                    </div>
+                    <div class="media-title">{{ item.title }}</div>
+                    <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">Views: {{ item.view_count }}</div>
+                    <audio controls style="position: absolute; bottom: 15px; left: 15px; width: calc(100% - 30px);" onclick="event.preventDefault();">
+                        <source src="{{ item.file.url }}" type="audio/mpeg">
+                    </audio>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+{% endif %}
+
+<!-- Video -->
+{% if video %}
+    <h3 style="margin-bottom: 15px; color: var(--text-muted);">Videos</h3>
+    <div class="media-grid">
+        {% for item in video %}
+            <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+                <div class="media-card">
+                    <div class="video-container">
+                        <video controls preload="metadata" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %} onclick="event.preventDefault();">
+                            <source src="{{ item.file.url }}" type="video/mp4">
+                        </video>
+                    </div>
+                    <div class="media-title" style="margin-top: 15px;">{{ item.title }}</div>
+                    <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">Views: {{ item.view_count }}</div>
+                </div>
+            </a>
+        {% endfor %}
+    </div>
+{% endif %}
+
+{% if not creators and not audio and not video %}
+    <div style="text-align: center; padding: 50px;">
+        <i class="fas fa-search" style="font-size: 50px; color: var(--text-muted); margin-bottom: 20px;"></i>
+        <h3 style="color: var(--text-muted);">No results found</h3>
+        <p style="color: var(--text-muted);">Try searching for artists, songs, or videos.</p>
+    </div>
+{% endif %}
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\settings.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2>Account Settings</h2>
+    {% if msg %}
+        <div style="color: var(--accent); margin-bottom: 15px; font-weight: bold;">{{ msg }}</div>
+    {% endif %}
+    <form method="POST">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Username (Cannot be changed)</label>
+            <input type="text" value="{{ user.username }}" disabled style="opacity: 0.6;">
+        </div>
+        <div class="form-group">
+            <label>Email Address</label>
+            <input type="email" name="email" value="{{ user.email }}" required>
+        </div>
+        <div class="form-group">
+            <label>New Password (Leave blank to keep current)</label>
+            <input type="password" name="new_password">
+        </div>
+        <button type="submit" class="btn">Save Changes</button>
+    </form>
+</div>
+{% endblock %}
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\uploader_audio.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2 style="text-align: center;">Upload Audio File</h2>
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Title *</label>
+            <input type="text" name="title" required>
+        </div>
+        <div class="form-group">
+            <label>Music Director *</label>
+            <input type="text" name="music_director" required>
+        </div>
+        <div class="form-group">
+            <label>Singer *</label>
+            <input type="text" name="singer" required>
+        </div>
+        <div class="form-group">
+            <label>Release Year</label>
+            <input type="number" name="release_year" min="1900" max="2100">
+        </div>
+        <div class="form-group">
+            <label>Release Date</label>
+            <input type="date" name="release_date">
+        </div>
+        <div class="form-group">
+            <label>Cover Image / Thumbnail (Optional, .jpg/.png)</label>
+            <input type="file" style="background: none; padding-left: 0;" name="thumbnail" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label>Audio File (.mp3, .wav max 20MB) *</label>
+            <input type="file" style="background: none; padding-left: 0;" name="file" accept="audio/*" required>
+        </div>
+        <button type="submit" class="btn">Upload to Spotstar</button>
+    </form>
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\app1\templates\uploader_video.html
+--------------------------------------------------------------------------------
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2 style="text-align: center;">Upload Video File</h2>
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Title *</label>
+            <input type="text" name="title" required>
+        </div>
+        <div class="form-group">
+            <label>Director *</label>
+            <input type="text" name="director" required>
+        </div>
+        <div class="form-group">
+            <label>Actor</label>
+            <input type="text" name="actor">
+        </div>
+        <div class="form-group">
+            <label>Actress</label>
+            <input type="text" name="actress">
+        </div>
+        <div class="form-group">
+            <label>Release Year</label>
+            <input type="number" name="release_year" min="1900" max="2100">
+        </div>
+        <div class="form-group">
+            <label>Release Date</label>
+            <input type="date" name="release_date">
+        </div>
+        <div class="form-group">
+            <label>Cover Image / Thumbnail (Optional, .jpg/.png)</label>
+            <input type="file" style="background: none; padding-left: 0;" name="thumbnail" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label>Video File (.mp4, .mkv max 500MB) *</label>
+            <input type="file" style="background: none; padding-left: 0;" name="file" accept="video/*" required>
+        </div>
+        <button type="submit" class="btn">Upload to Spotstar</button>
+    </form>
+</div>
+{% endblock %}
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\starspot\asgi.py
+--------------------------------------------------------------------------------
+"""
+ASGI config for starspot project.
+
+It exposes the ASGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/6.0/howto/deployment/asgi/
+"""
+
+import os
+
+from django.core.asgi import get_asgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'starspot.settings')
+
+application = get_asgi_application()
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\starspot\settings.py
+--------------------------------------------------------------------------------
+"""
+Django settings for starspot project.
+
+Generated by 'django-admin startproject' using Django 6.0.3.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/6.0/topics/settings/
+
+For the full list of settings and their values, see
+https://docs.djangoproject.com/en/6.0/ref/settings/
+"""
+import os
+from pathlib import Path
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+
+# Quick-start development settings - unsuitable for production
+# See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
+
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'django-insecure-vlgzg+#7rcgh+_izs8klaqw7xbt1g6#r%cml9c$7zvlo-q_45f'
+
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = True
+
+ALLOWED_HOSTS = ['*']
+
+
+# Application definition
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'app1',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'starspot.urls'
+
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR,'templates')],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.request',
+                'django.contrib.auth.context_processors.auth',
+                'django.contrib.messages.context_processors.messages',
+            ],
+        },
+    },
+]
+
+WSGI_APPLICATION = 'starspot.wsgi.application'
+
+
+# Database
+# https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'starspot_db',
+        'USER': 'root',
+        'PASSWORD': 'Keerthi@26',
+        'HOST': 'localhost',
+        'PORT': '3306',
+    }
+}
+    
+
+
+# Password validation
+# https://docs.djangoproject.com/en/6.0/ref/settings/#auth-password-validators
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+
+# Internationalization
+# https://docs.djangoproject.com/en/6.0/topics/i18n/
+
+LANGUAGE_CODE = 'en-us'
+
+TIME_ZONE = 'UTC'
+
+USE_I18N = True
+
+USE_TZ = True
+
+
+# Static files (CSS, JavaScript, Images)
+# https://docs.djangoproject.com/en/6.0/howto/static-files/
+
+STATIC_URL = 'static/'
+STATICFILES_DIRS=[BASE_DIR/'static']
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\starspot\urls.py
+--------------------------------------------------------------------------------
+from django.contrib import admin
+from django.urls import path
+from app1 import views   # âœ… import your views
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    path('admin/', admin.site.urls),
+
+    path('', views.home, name='home'),
+
+    path('login/', views.login_view, name='login'),
+    path('register/', views.register, name='register'),
+
+    path('dashboard/', views.dashboard, name='dashboard'),
+
+    path('upload-audio/', views.upload_audio, name='upload_audio'),
+    path('upload-video/', views.upload_video, name='upload_video'),
+
+    path('listener-audio/', views.listener_audio, name='listener_audio'),
+    path('listener-video/', views.listener_video, name='listener_video'),
+
+    path('admin-panel/', views.admin_panel, name='admin_panel'),
+    path('search/', views.global_search, name='global_search'),
+
+    path('media/<int:media_id>/', views.media_detail, name='media_detail'),
+    path('media/<int:media_id>/like/', views.toggle_like, name='toggle_like'),
+    path('media/<int:media_id>/comment/', views.add_comment, name='add_comment'),
+    path('creator/<str:username>/', views.creator_profile, name='creator_profile'),
+    path('liked-media/', views.liked_media, name='liked_media'),
+    path('playlists/', views.playlists, name='playlists'),
+    path('playlist/add/<int:media_id>/', views.add_to_playlist, name='add_to_playlist'),
+    path('playlist/remove/<int:playlist_id>/<int:media_id>/', views.remove_from_playlist, name='remove_from_playlist'),
+    path('settings/', views.settings_view, name='settings'),
+
+    path('logout/', views.logout, name='logout'),
+]
+
+# MEDIA FILES
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\starspot\wsgi.py
+--------------------------------------------------------------------------------
+"""
+WSGI config for starspot project.
+
+It exposes the WSGI callable as a module-level variable named ``application``.
+
+For more information on this file, see
+https://docs.djangoproject.com/en/6.0/howto/deployment/wsgi/
+"""
+
+import os
+
+from django.core.wsgi import get_wsgi_application
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'starspot.settings')
+
+application = get_wsgi_application()
+
+
+
+--------------------------------------------------------------------------------
+FILE: C:\Users\keert\OneDrive\Desktop\finalproject\starspot\__init__.py
+--------------------------------------------------------------------------------
+
+
+

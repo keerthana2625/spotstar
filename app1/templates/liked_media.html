@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2><i class="fas fa-heart" style="color: var(--danger); margin-right: 10px;"></i> Liked Tracks & Videos</h2>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="media-icon" style="height: 120px;">
+                    {% if item.media_type == 'audio' %}
+                        <i class="fas fa-music"></i>
+                    {% else %}
+                        <i class="fas fa-video"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 50px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            <p>You haven't liked anything yet.</p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

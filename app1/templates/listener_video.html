@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="margin-bottom: 30px;">
+    <h2>Discover Video</h2>
+    <form class="search-bar" method="GET">
+        <input type="text" name="q" placeholder="Search for videos, directors, or actors..." value="{{ query|default:'' }}">
+        <button type="submit" class="btn">Search</button>
+        {% if query %}
+            <a href="{% url 'listener_video' %}" class="btn" style="background-color: var(--card-hover); width: auto;">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<div class="media-grid">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="video-container">
+                    <video controls preload="metadata" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %} onclick="event.preventDefault();">
+                        <source src="{{ item.file.url }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+                <div class="media-title" style="margin-top: 15px;">{{ item.title }}</div>
+                <div class="media-subtitle">
+                    Director: {{ item.director|default:"Unknown" }}<br>
+                    Actors: {{ item.actor|default:"-" }}, {{ item.actress|default:"-" }}<br>
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <div style="grid-column: 1 / -1; color: var(--text-muted); padding: 40px; text-align: center; background-color: var(--card-bg); border-radius: 8px;">
+            {% if query %}
+                No videos found matching "{{ query }}".
+            {% else %}
+                No videos available yet.
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

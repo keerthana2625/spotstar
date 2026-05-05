@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="background-color: var(--card-bg); padding: 30px; border-radius: 8px;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+            <h1>{{ item.title }}</h1>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Uploaded by <a href="{% url 'creator_profile' item.uploaded_by %}" style="color: var(--accent); text-decoration: none;">{{ item.uploaded_by }}</a> 
+                | Views: {{ item.view_count }}
+            </p>
+        </div>
+        <div>
+            <form method="POST" action="{% url 'toggle_like' item.id %}" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn {% if is_liked %}btn-danger{% endif %}" style="width: auto; padding: 10px 20px;">
+                    <i class="fas fa-heart"></i> {% if is_liked %}Unlike{% else %}Like{% endif %}
+                </button>
+            </form>
+            
+            {% if playlists %}
+            <div style="display: inline-block; margin-left: 10px; position: relative;">
+                <form method="POST" action="{% url 'add_to_playlist' item.id %}" style="display: flex; gap: 5px;">
+                    {% csrf_token %}
+                    <select name="playlist_id" style="padding: 10px; border-radius: 4px; background: #2A2A2A; color: white; border: none;">
+                        {% for pl in playlists %}
+                            <option value="{{ pl.id }}">{{ pl.title }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn" style="width: auto; padding: 10px 15px;">Add</button>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Media Player -->
+    <div style="margin: 30px 0; padding: 20px; background-color: #000; border-radius: 8px; text-align: center;">
+        {% if item.media_type == 'video' %}
+            <video id="spotstar-player" controls preload="metadata" {% if item.thumbnail %}poster="{{ item.thumbnail.url }}"{% endif %} style="max-height: 400px; width: 100%;">
+                <source src="{{ item.file.url }}" type="video/mp4">
+            </video>
+        {% else %}
+            {% if item.thumbnail %}
+                <img src="{{ item.thumbnail.url }}" style="height: 200px; width: 200px; object-fit: cover; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 10px 20px rgba(0,0,0,0.5); display: inline-block;">
+            {% else %}
+                <i class="fas fa-music" style="font-size: 80px; color: var(--text-muted); margin-bottom: 20px; display: block;"></i>
+            {% endif %}
+            <audio id="spotstar-player" controls style="width: 100%; display: block;">
+                <source src="{{ item.file.url }}" type="audio/mpeg">
+            </audio>
+        {% endif %}
+    </div>
+
+    <!-- Autoplay Script -->
+    {% if next_media %}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const player = document.getElementById('spotstar-player');
+            if (player) {
+                player.addEventListener('ended', function() {
+                    window.location.href = "{% url 'media_detail' next_media.id %}";
+                });
+            }
+        });
+    </script>
+    {% endif %}
+
+    <!-- Metadata -->
+    <div style="margin-bottom: 40px;">
+        <h3 style="margin-bottom: 10px;">Details</h3>
+        {% if item.media_type == 'audio' %}
+            <p><strong>Singer:</strong> {{ item.singer }}</p>
+            <p><strong>Music Director:</strong> {{ item.music_director }}</p>
+        {% else %}
+            <p><strong>Director:</strong> {{ item.director }}</p>
+            <p><strong>Actors:</strong> {{ item.actor }}, {{ item.actress }}</p>
+        {% endif %}
+        <p><strong>Released:</strong> {{ item.release_date|default:"-" }} ({{ item.release_year|default:"-" }})</p>
+    </div>
+
+    <!-- Comments -->
+    <hr style="border-color: #333; margin-bottom: 30px;">
+    <h2>Comments ({{ comments.count }})</h2>
+    
+    {% if request.session.username %}
+    <form method="POST" action="{% url 'add_comment' item.id %}" style="margin-bottom: 30px; display: flex; gap: 10px;">
+        {% csrf_token %}
+        <input type="text" name="text" placeholder="Add a comment..." required style="flex: 1; padding: 12px; border-radius: 4px; border: none; background: #2A2A2A; color: white;">
+        <button type="submit" class="btn" style="width: auto; padding: 0 20px;">Comment</button>
+    </form>
+    {% endif %}
+
+    <div style="display: flex; flex-direction: column; gap: 15px;">
+        {% for comment in comments %}
+            <div style="background-color: #222; padding: 15px; border-radius: 8px;">
+                <p style="color: var(--accent); font-weight: bold; font-size: 14px; margin-bottom: 5px;">{{ comment.user_name }} <span style="color: var(--text-muted); font-size: 12px; margin-left: 10px;">{{ comment.created_at|date:"M d, Y" }}</span></p>
+                <p style="font-size: 15px;">{{ comment.text }}</p>
+            </div>
+        {% empty %}
+            <p style="color: var(--text-muted);">No comments yet. Be the first!</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="auth-container">
+    <h2 style="text-align: center;">Upload Video File</h2>
+    {% if error %}
+        <div class="error-msg">{{ error }}</div>
+    {% endif %}
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="form-group">
+            <label>Title *</label>
+            <input type="text" name="title" required>
+        </div>
+        <div class="form-group">
+            <label>Director *</label>
+            <input type="text" name="director" required>
+        </div>
+        <div class="form-group">
+            <label>Actor</label>
+            <input type="text" name="actor">
+        </div>
+        <div class="form-group">
+            <label>Actress</label>
+            <input type="text" name="actress">
+        </div>
+        <div class="form-group">
+            <label>Release Year</label>
+            <input type="number" name="release_year" min="1900" max="2100">
+        </div>
+        <div class="form-group">
+            <label>Release Date</label>
+            <input type="date" name="release_date">
+        </div>
+        <div class="form-group">
+            <label>Cover Image / Thumbnail (Optional, .jpg/.png)</label>
+            <input type="file" style="background: none; padding-left: 0;" name="thumbnail" accept="image/*">
+        </div>
+        
+        <div class="form-group">
+            <label>Video File (.mp4, .mkv max 500MB) *</label>
+            <input type="file" style="background: none; padding-left: 0;" name="file" accept="video/*" required>
+        </div>
+        <button type="submit" class="btn">Upload to Spotstar</button>
+    </form>
+</div>
+{% endblock %}

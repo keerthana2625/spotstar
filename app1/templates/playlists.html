@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+    <h2>Your Playlists</h2>
+    <form method="POST" style="display: flex; gap: 10px;">
+        {% csrf_token %}
+        <input type="text" name="title" placeholder="New Playlist Name" required style="padding: 10px; border-radius: 4px; border: none; background: #2A2A2A; color: white;">
+        <button type="submit" class="btn" style="width: auto; padding: 10px 20px;">Create</button>
+    </form>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 30px;">
+    {% for playlist in playlists %}
+        <div style="background-color: var(--card-bg); padding: 20px; border-radius: 8px;">
+            <h3><i class="fas fa-list-ul" style="color: var(--accent); margin-right: 10px;"></i> {{ playlist.title }}</h3>
+            <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 15px;">Created {{ playlist.created_at|date:"M d, Y" }}</p>
+            
+            <div class="table-wrapper" style="margin-top: 0;">
+                <table style="background: none;">
+                    <tbody>
+                        {% for item in playlist.media_items.all %}
+                        <tr>
+                            <td style="width: 50px;">
+                                {% if item.media_type == 'audio' %}
+                                    <i class="fas fa-music" style="color: var(--text-muted);"></i>
+                                {% else %}
+                                    <i class="fas fa-video" style="color: var(--text-muted);"></i>
+                                {% endif %}
+                            </td>
+                            <td><a href="{% url 'media_detail' item.id %}" style="color: white; text-decoration: none; font-weight: bold;">{{ item.title }}</a></td>
+                            <td style="color: var(--text-muted);">{{ item.uploaded_by }}</td>
+                            <td style="text-align: right;">
+                                <a href="{% url 'remove_from_playlist' playlist.id item.id %}" style="color: var(--danger); text-decoration: none; font-size: 12px;"><i class="fas fa-times"></i> Remove</a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" style="color: var(--text-muted); text-align: center;">Empty playlist. Discover media to add tracks!</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% empty %}
+        <div style="text-align: center; padding: 50px; background-color: var(--card-bg); border-radius: 8px;">
+            <i class="fas fa-music" style="font-size: 50px; color: var(--text-muted); margin-bottom: 20px;"></i>
+            <p style="color: var(--text-muted);">You don't have any playlists. Create one above!</p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}

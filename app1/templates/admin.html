@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h2>Admin Dashboard</h2>
+
+<div class="table-wrapper">
+    <table>
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Type</th>
+                <th>Uploader</th>
+                <th>Details</th>
+                <th>File</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in media %}
+            <tr>
+                <td>{{ item.title }}</td>
+                <td style="text-transform: capitalize;">{{ item.media_type }}</td>
+                <td>{{ item.uploaded_by }}</td>
+                <td>
+                    {% if item.media_type == 'audio' %}
+                        Singer: {{ item.singer }}<br>MD: {{ item.music_director }}
+                    {% else %}
+                        Dir: {{ item.director }}
+                    {% endif %}
+                </td>
+                <td><a href="{{ item.file.url }}" target="_blank" style="color: var(--accent);">View</a></td>
+                <td>
+                    <span class="status-badge status-{{ item.status }}">
+                        {{ item.status|title }}
+                    </span>
+                    {% if item.rejection_reason %}
+                        <div style="font-size: 11px; margin-top: 5px; color: var(--danger);">{{ item.rejection_reason }}</div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">No media uploaded yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

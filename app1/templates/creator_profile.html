@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div style="text-align: center; margin-bottom: 40px; padding: 40px; background-color: var(--card-bg); border-radius: 8px;">
+    <i class="fas fa-user-circle" style="font-size: 80px; color: var(--accent); margin-bottom: 15px;"></i>
+    <h1>{{ creator_name }}</h1>
+    <p style="color: var(--text-muted);">Verified Creator</p>
+</div>
+
+<h2>Uploads by {{ creator_name }}</h2>
+<div class="media-grid" style="margin-top: 20px;">
+    {% for item in media %}
+        <a href="{% url 'media_detail' item.id %}" style="text-decoration: none; color: inherit;">
+            <div class="media-card">
+                <div class="media-icon" style="height: 120px;">
+                    {% if item.media_type == 'audio' %}
+                        <i class="fas fa-music"></i>
+                    {% else %}
+                        <i class="fas fa-video"></i>
+                    {% endif %}
+                </div>
+                <div class="media-title">{{ item.title }}</div>
+                <div class="media-subtitle" style="font-size: 12px; margin-bottom: 0;">
+                    Views: {{ item.view_count }}
+                </div>
+            </div>
+        </a>
+    {% empty %}
+        <p style="color: var(--text-muted);">This creator hasn't published anything yet.</p>
+    {% endfor %}
+</div>
+{% endblock %}
